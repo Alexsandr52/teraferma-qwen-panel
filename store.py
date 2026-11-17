@@ -5,6 +5,7 @@ import json
 import hmac
 import os
 import base64
+import atexit
 from pathlib import Path
 import shutil
 import subprocess
@@ -92,6 +93,10 @@ class Store:
         DATA.chmod(0o700)
         SECRETS.chmod(0o700)
         self.lock = threading.RLock()
+        self.runtime_folder = RUNTIME_KEYS / str(os.getpid())
+        self.runtime_folder.mkdir(parents=True, exist_ok=True, mode=0o700)
+        self.runtime_folder.chmod(0o700)
+        atexit.register(self.cleanup_runtime_keys)
         self.profiles = _read(PROFILES, [])
         self.state = _read(STATE, {
             "status": "idle", "confirmed_stopped": True, "message": "Сервер не запущен"
@@ -171,7 +176,7 @@ class Store:
             raise RuntimeError("SSH-ключ в .env поврежден") from error
         if not private.startswith(b"-----BEGIN OPENSSH PRIVATE KEY-----"):
             raise RuntimeError("SSH-ключ в .env имеет неверный формат")
-        folder = RUNTIME_KEYS / profile_id
+        folder = self.runtime_folder / profile_id
         folder.mkdir(parents=True, exist_ok=True, mode=0o700)
         folder.chmod(0o700)
         key = folder / "id_ed25519"
@@ -188,6 +193,9 @@ class Store:
                 temporary.unlink(missing_ok=True)
         key.chmod(0o600)
         return key
+
+    def cleanup_runtime_keys(self):
+        shutil.rmtree(self.runtime_folder, ignore_errors=True)
 
     def get_state(self):
         with self.lock:
@@ -269,7 +277,7 @@ class Store:
             self.profiles = [p for p in self.profiles if p["id"] != profile_id]
             _write(PROFILES, self.profiles)
             shutil.rmtree(SECRETS / profile_id)
-            shutil.rmtree(RUNTIME_KEYS / profile_id, ignore_errors=True)
+            shutil.rmtree(self.runtime_folder / profile_id, ignore_errors=True)
             self.env.pop(_token_name(profile_id), None)
             self.env.pop(_key_name(profile_id), None)
             _write_env(self.env)
