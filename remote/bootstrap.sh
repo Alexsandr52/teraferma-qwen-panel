@@ -54,7 +54,15 @@ if ! valid_model; then
 fi
 
 echo BUILDING > "$STATUS"
-if [ ! -x "$ROOT/runtime/llama-server" ]; then
+# Restoring /workspace can strip executable bits and shared library links.
+if [ -f "$ROOT/runtime/llama-server" ]; then
+  chmod 700 "$ROOT/runtime/llama-server"
+fi
+if [ -d "$ROOT/runtime" ]; then
+  find "$ROOT/runtime" -maxdepth 1 -type f -name '*.so*' -exec chmod 644 {} +
+  ldconfig -n "$ROOT/runtime" 2>/dev/null || true
+fi
+if [ ! -f "$ROOT/runtime/llama-server" ]; then
   bash "$ROOT/build_pytorch.sh" || fail 'Не удалось подготовить CUDA-сборку llama.cpp'
 fi
 
