@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="app-token" content="APP_CSRF_TOKEN">
+<meta name="theme-color" content="#08070c">
+<title>QWEN // CONTROL</title>
+<link rel="stylesheet" href="/static/style.css?v=4">
+<script src="/static/app.js?v=7" defer></script>
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar" aria-label="Меню">
+    <div class="brand"><span class="brand-symbol">▣</span> QWEN<span class="accent">//</span>CONTROL</div>
+    <div class="side-label">НАВИГАЦИЯ</div>
+    <nav class="nav" aria-label="Разделы">
+      <button class="nav-item active" data-page="overview" type="button"><span>01</span> Обзор</button>
+      <button class="nav-item" data-page="gpu" type="button"><span>02</span> GPU</button>
+      <button class="nav-item" data-page="storage" type="button"><span>03</span> Хранилище</button>
+      <button class="nav-item" data-page="account" type="button"><span>04</span> Аккаунт</button>
+    </nav>
+    <div class="sidebar-bottom"><span class="online-dot"></span> LOCAL / 127.0.0.1</div>
+  </aside>
+  <main class="content">
+    <header class="topbar"><span>TERAFERMA / QWEN 27B</span><span class="topbar-right">Q6_K_L <span class="cursor">_</span></span></header>
+    <div id="notice" class="notice" role="status" hidden></div>
+
+    <section class="page-view" data-view="overview" aria-labelledby="overview-title">
+      <div class="page-heading"><div class="kicker">/// КОНСОЛЬ</div><h1 id="overview-title">Обзор<span class="accent">.</span></h1></div>
+      <section class="balance-card" aria-labelledby="balance-title">
+        <div class="card-top"><span id="balance-title">БАЛАНС TERAFERMA</span><button id="refresh-balance" class="link-button" type="button">↻ ОБНОВИТЬ</button></div>
+        <div id="balance-value" class="balance-value">— <span>₽</span></div>
+        <div id="balance-caption" class="balance-caption">Загружаю аккаунт…</div>
+      </section>
+      <section class="session-card" aria-labelledby="session-title">
+        <div class="card-top"><span id="session-title">СЕССИЯ</span><span class="live-tag">● GPU</span></div>
+        <div class="status-line"><span id="status-dot" class="dot"></span><strong id="status-title">Проверяю сервер…</strong></div>
+        <p id="status-message" class="status-message">Загружаю состояние.</p>
+        <div id="launch-progress" class="progress-block" hidden>
+          <div class="progress-head"><span id="progress-stage">ПОДГОТОВКА</span><span id="progress-percent">0%</span></div>
+          <div id="progress-track" class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="progress-fill"></span></div>
+          <div id="progress-detail" class="progress-detail"></div>
+        </div>
+        <div class="actions">
+          <button id="start" class="button primary" type="button" disabled>▶ ЗАПУСТИТЬ QWEN</button>
+          <a id="opencode" class="button primary" href="http://127.0.0.1:4100" target="_blank" rel="noopener noreferrer" hidden>↗ ОТКРЫТЬ OPENCODE</a>
+          <button id="reconnect" class="button ghost" type="button" hidden>↻ ВОССТАНОВИТЬ СВЯЗЬ</button>
+          <button id="keep-running" class="button ghost" type="button" hidden>БЕЗ АВТОСТОПА</button>
+          <button id="stop" class="button danger" type="button" disabled>■ ОСТАНОВИТЬ GPU</button>
+        </div>
+        <div id="overview-offer" class="overview-offer"></div>
+        <div id="status-meta" class="status-meta"></div>
+      </section>
+    </section>
+
+    <section class="page-view" data-view="gpu" aria-labelledby="gpu-title" hidden>
+      <div class="page-heading"><div class="kicker">/// МАШИНЫ</div><h1 id="gpu-title">GPU<span class="accent">.</span></h1></div>
+      <div class="inner-card">
+        <div class="card-top"><span>ДОСТУПНЫЕ СЕРВЕРЫ</span><button id="refresh-offers" class="link-button" type="button">↻ ОБНОВИТЬ</button></div>
+        <div id="account-info" class="details muted">Выбери аккаунт.</div>
+        <div id="offers" class="offers muted">Машины пока не загружены.</div>
+        <div id="price-note" class="price-note" hidden></div>
+      </div>
+    </section>
+
+    <section class="page-view" data-view="storage" aria-labelledby="storage-title" hidden>
+      <div class="page-heading"><div class="kicker">/// /WORKSPACE</div><h1 id="storage-title">Хранилище<span class="accent">.</span></h1></div>
+      <div class="inner-card">
+        <div class="card-top"><span>МОДЕЛЬ НА СЕРВЕРЕ</span><span>Q6_K_L</span></div>
+        <p id="storage-status" class="status-message">Проверяю копию.</p>
+        <div id="storage-meta" class="status-meta"></div>
+        <button id="save-on-server" class="button primary" type="button">СОХРАНИТЬ QWEN НА TERAFERMA</button>
+        <details class="help-details"><summary>Как работает хранение</summary><p>Модель хранится в /workspace на аккаунте Teraferma. Хранение оплачивается по тарифу 3 ₽/ГБ в месяц; запуск GPU оплачивается отдельно.</p></details>
+      </div>
+    </section>
+
+    <section class="page-view" data-view="account" aria-labelledby="account-title" hidden>
+      <div class="page-heading"><div class="kicker">/// ДОСТУП</div><h1 id="account-title">Аккаунт<span class="accent">.</span></h1></div>
+      <div class="inner-card">
+        <label for="profiles">АККАУНТ TERAFERMA</label>
+        <select id="profiles"><option value="">Выбери аккаунт</option></select>
+        <div id="profile-details" class="details muted">Добавь или выбери аккаунт.</div>
+        <div class="account-actions"><button id="import" class="button ghost" type="button">ИМПОРТ ПРЕЖНЕГО</button><button id="delete" class="button subtle" type="button">УДАЛИТЬ ПРОФИЛЬ</button></div>
+        <details class="add-box" id="add-box">
+          <summary>＋ ДОБАВИТЬ АККАУНТ</summary>
+          <p class="hint"><a href="https://teraferma.io/kabinet/" target="_blank" rel="noopener noreferrer">Создай аккаунт Teraferma</a> и API-токен в кабинете.</p>
+          <form id="add-profile">
+            <label for="label">НАЗВАНИЕ</label><input id="label" name="label" autocomplete="off" placeholder="Например, личный" required>
+            <label for="token">API-ТОКЕН</label><input id="token" name="token" type="password" autocomplete="off" placeholder="tf_live_…" required>
+            <div class="limits">
+              <div><label for="rate">МАКС. ₽/ЧАС</label><input id="rate" name="max_rate" type="number" min="1" max="10000" value="80" required></div>
+              <div><label for="minutes">МАКС. МИНУТ</label><input id="minutes" name="max_minutes" type="number" min="15" max="480" value="60" required></div>
+              <div><label for="budget">ЛИМИТ ₽/МЕС.</label><input id="budget" name="monthly_limit" type="number" min="1" max="1000000" value="3000" required></div>
+            </div>
+            <button class="button primary" type="submit">СОХРАНИТЬ АККАУНТ →</button>
+          </form>
+        </details>
+      </div>
+    </section>
+  </main>
+</div>
+</body>
+</html>
