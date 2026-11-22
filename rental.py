@@ -21,6 +21,7 @@ from store import DATA, ROOT, Store, _read, _write
 API_BASE = "https://teraferma.io/api"
 MODEL_PORT = 17862
 OPENCODE_PORT = 4100
+PLAYWRIGHT_MCP_VERSION = "0.0.84"
 ACTIVE = {"starting", "creating", "provisioning", "loading", "ready", "stopping",
           "recovering", "creation_uncertain", "stop_failed", "needs_attention"}
 
@@ -461,6 +462,18 @@ class RentalController:
                 }
             }
         }
+        # webfetch gets raw HTML only; JS-rendered sites and search pages need a
+        # real browser. Playwright MCP runs locally via npx when Node is present.
+        npx = shutil.which("npx")
+        if npx:
+            config["mcp"] = {
+                "browser": {
+                    "type": "local",
+                    "command": [npx, "-y", f"@playwright/mcp@{PLAYWRIGHT_MCP_VERSION}",
+                                "--browser", "chromium", "--headless", "--isolated"],
+                    "enabled": True
+                }
+            }
         config_path = DATA / "opencode.json"
         _write(config_path, config)
         binary = shutil.which("opencode") or next((
