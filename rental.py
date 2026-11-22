@@ -6,6 +6,8 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
+import sys
 import subprocess
 import threading
 import time
@@ -274,14 +276,25 @@ class RentalController:
     def _connect_ssh(self, profile_id, access):
         self.ssh = ssh_args(self.store, profile_id, access)
         deadline = time.monotonic() + 150
+        last_error = "Нет ответа от SSH"
         while time.monotonic() < deadline:
             self._check_stop()
             try:
                 self._ssh_run("true", timeout=20)
                 return
-            except (RuntimeError, subprocess.TimeoutExpired):
-                time.sleep(5)
-        raise RuntimeError("SSH не стал доступен за 2,5 минуты")
+            except subprocess.TimeoutExpired:
+                last_error = "Сервер не ответил за 20 секунд"
+            except RuntimeError as error:
+                last_error = str(error)
+                if "permission denied" in last_error.lower():
+                    last_error = (
+                        "Сервер отклонил SSH-ключ. В панели открой «Аккаунт» и скопируй "
+                        "публичный ключ выбранного профиля. В кабинете Терафермы открой "
+                        "«Настройки → Доступ к серверам», добавь ключ отдельной строкой и сохрани."
+                    )
+            self.store.update_state(message="Ожидаю подключения по SSH. " + last_error)
+            self.stop_event.wait(5)
+        raise RuntimeError("Подключение по SSH не удалось за 2,5 минуты. " + last_error)
 
     def _launch_remote(self):
         profile_id = self.store.get_state().get("profile_id")
@@ -448,9 +461,12 @@ class RentalController:
         }
         config_path = DATA / "opencode.json"
         _write(config_path, config)
-        binary = Path.home() / ".local/bin/opencode"
-        if not binary.exists():
-            raise RuntimeError("OpenCode не установлен в ~/.local/bin/opencode")
+        binary = shutil.which("opencode") or next((
+            str(path) for path in (Path.home() / ".local/bin/opencode", Path.home() / ".opencode/bin/opencode")
+            if path.is_file() and os.access(path, os.X_OK)
+        ), None)
+        if not binary:
+            raise RuntimeError("OpenCode не установлен")
         env = os.environ.copy()
         env["OPENCODE_CONFIG"] = str(config_path)
         log = (DATA / "opencode.log").open("ab")
@@ -463,11 +479,22 @@ class RentalController:
         log.close()
         time.sleep(2)
         if self.opencode.poll() is not None:
+            self.opencode = None
             raise RuntimeError("OpenCode завершился при запуске")
-        subprocess.Popen(
-            ["xdg-open", f"http://127.0.0.1:{OPENCODE_PORT}"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-        )
+        opener = shutil.which("open" if sys.platform == "darwin" else "xdg-open")
+        if opener:
+            try:
+                subprocess.Popen([opener, f"http://127.0.0.1:{OPENCODE_PORT}"],
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except OSError:
+                pass  # The user can still open the URL from the panel.
+
+    def _ready_message(self):
+        try:
+            self._open_opencode()
+        except (RuntimeError, OSError) as error:
+            return f"Qwen готова. {error}. Открой чат модели в панели."
+        return "Qwen готова. OpenCode доступен."
 
     def _monitor_running(self, api, instance_id, actual_rate, profile):
         """Keep the local tunnel alive without ending a paid run on a brief outage."""
@@ -551,12 +578,8 @@ class RentalController:
                     )
                     time.sleep(5)
             if self.opencode is not None and self.opencode.poll() is not None:
-                try:
-                    self._open_opencode()
-                except (OSError, RuntimeError) as error:
-                    self.store.update_state(
-                        message="Модель работает; перезапускаю OpenCode: " + str(error)[-140:]
-                    )
+                self.opencode = None
+                self.store.update_state(message=self._ready_message())
             time.sleep(2)
 
     def _worker(self, profile_id, offer_id):
@@ -654,10 +677,9 @@ class RentalController:
             self._wait_model(api, instance_id)
             self._check_stop()
             self._probe_model()
-            self._open_opencode()
             self.store.update_state(
                 status="ready", error=None,
-                message="Qwen готова; OpenCode открыт",
+                message=self._ready_message(),
                 model_sha256="20b1214a23f0f5f401b6117cbd63336cfff6c07be4df93bd6e374d8fd8d12938"
             )
             self._monitor_running(api, instance_id, actual_rate, profile)
@@ -774,10 +796,9 @@ class RentalController:
                     self._launch_remote()
             self._wait_model(api, instance_id)
             self._probe_model()
-            self._open_opencode()
             self.store.update_state(
                 status="ready", error=None,
-                message="Qwen готова; OpenCode открыт"
+                message=self._ready_message()
             )
             self._monitor_running(
                 api, instance_id,

@@ -220,6 +220,13 @@ class Store:
         monthly_limit = float(monthly_limit)
         if not 1 <= max_rate <= 10000 or not 15 <= max_minutes <= 480 or not 1 <= monthly_limit <= 1000000:
             raise ValueError("Проверь лимиты цены, времени и расходов")
+        with self.lock:
+            existing = self.find_by_token(token)
+            if existing:
+                return existing
+            return self._create_profile(label, token, account, key_source, max_rate, max_minutes, monthly_limit)
+
+    def _create_profile(self, label, token, account, key_source, max_rate, max_minutes, monthly_limit):
         profile_id = uuid.uuid4().hex
         folder = SECRETS / profile_id
         folder.mkdir(mode=0o700)

@@ -82,7 +82,7 @@ function renderProfiles() {
   el("profile-details").innerHTML =
     "<p><strong>Лимиты:</strong> " + money(profile.max_rate) + " ₽/час · " +
     esc(profile.max_minutes) + " мин · " + money(profile.monthly_limit) + " ₽/месяц</p>" +
-    '<p>Публичный SSH-ключ для этого аккаунта. Скопируй его в настройки Teraferma:</p>' +
+    '<p>В Тераферме открой «Настройки → Доступ к серверам» и добавь этот публичный ключ отдельной строкой. У разных профилей могут быть разные ключи.</p>' +
     '<div class="key-box"><code>' + esc(profile.public_key) + '</code>' +
     '<button id="copy-key" class="button secondary" type="button">Копировать</button></div>';
   el("copy-key").onclick = async () => {
@@ -115,7 +115,7 @@ function renderOffers() {
     renderBalance();
   }
   accountInfo.textContent = "Почта: " + (account.verified ? "подтверждена" : "не подтверждена") +
-    " · SSH: " + (account.ssh_key_set ? "готов" : "нужен ключ");
+    " · SSH: " + (account.ssh_key_set ? "ключ добавлен в кабинете" : "нужен ключ");
   if (!offersData.live) {
     el("offers").textContent = "Каталог Teraferma сейчас недоступен.";
     el("overview-offer").textContent = "Каталог GPU недоступен";
@@ -206,7 +206,7 @@ function renderRental() {
         rental.status === "ready" ? "МОДЕЛЬ ОТВЕЧАЕТ" : "ПОСЛЕДОВАТЕЛЬНЫЕ ЭТАПЫ ЗАПУСКА");
   }
   el("status-message").textContent = rental.message || "";
-  if (rental.error && rental.error !== "Остановлено пользователем") {
+  if (rental.error && rental.error !== rental.message && rental.error !== "Остановлено пользователем") {
     el("status-message").textContent += "\n" + rental.error;
   }
   el("status-dot").className = "dot" +
@@ -228,7 +228,8 @@ function renderRental() {
   el("keep-running").hidden = rental.confirmed_stopped || !rental.instance_id || !rental.stop_at;
   el("reconnect").hidden = rental.status !== "needs_attention";
   el("opencode").hidden = !["ready", "recovering"].includes(rental.status);
-  el("opencode").href = snapshot.opencode_url;
+  el("opencode").href = snapshot.opencode_url || snapshot.model_url;
+  el("opencode").textContent = snapshot.opencode_url ? "↗ ОТКРЫТЬ OPENCODE" : "↗ ОТКРЫТЬ ЧАТ QWEN";
 }
 
 function renderStorage() {
@@ -339,7 +340,7 @@ el("add-profile").onsubmit = async (event) => {
     await refresh();
     await refreshOffers();
     await refreshAccount();
-    showPage("overview");
+    showPage("account");
     notice(result.account.ssh_key_set ?
       "Аккаунт сохранён. Проверь, что в кабинете указан показанный SSH-ключ." :
       "Аккаунт сохранён. Скопируй публичный SSH-ключ в кабинет Teraferma.", "success");
@@ -374,7 +375,18 @@ el("delete").onclick = async () => {
 el("start").onclick = async () => {
   if (!selectedProfile || !selectedOffer) return;
   try {
-    await api("/api/start", { profile_id: selectedProfile, offer_id: selectedOffer });
+    const profileId = selectedProfile;
+    const offer = offersData?.offers.find(row => String(row.id) === selectedOffer);
+    if (!offer) return;
+    await refreshOffers();
+    if (profileId !== selectedProfile || !offersData?.live) return;
+    const current = offersData.offers.find(row => String(row.id) === String(offer.id));
+    if (!current || selectedOffer !== String(offer.id) || current.price !== offer.price ||
+        current.traffic_rub !== offer.traffic_rub) {
+      notice("Каталог GPU изменился. Проверь доступную машину и цену перед запуском.");
+      return;
+    }
+    await api("/api/start", { profile_id: profileId, offer_id: current.id });
     notice("");
     await refresh();
     showPage("overview");

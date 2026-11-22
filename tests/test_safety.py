@@ -50,6 +50,21 @@ class SafetyTests(unittest.TestCase):
         self.assertEqual(result["status"], "stopped")
         self.assertEqual(api.call.call_args_list[1].args, ("/instances/stop", {"id": 123}))
 
+    def test_missing_opencode_keeps_model_available(self):
+        controller = rental.RentalController(Mock(get_state=Mock(return_value={"status": "idle"})))
+        with patch.object(controller, "_open_opencode", side_effect=OSError("OpenCode недоступен")):
+            self.assertIn("Открой чат модели", controller._ready_message())
+
+    def test_ssh_auth_failure_survives_timeout(self):
+        database = Mock(get_state=Mock(return_value={"status": "idle"}))
+        controller = rental.RentalController(database)
+        with patch.object(rental, "ssh_args", return_value=["ssh"]), \
+             patch.object(controller, "_ssh_run", side_effect=RuntimeError("Permission denied (publickey)")), \
+             patch.object(controller.stop_event, "wait"), \
+             patch.object(rental.time, "monotonic", side_effect=[0, 0, 151]):
+            with self.assertRaisesRegex(RuntimeError, "Сервер отклонил SSH-ключ"):
+                controller._connect_ssh("profile", {})
+
     def test_profiles_keep_tokens_separate_and_private(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -61,6 +76,9 @@ class SafetyTests(unittest.TestCase):
                  patch.object(store, "RUNTIME_KEYS", root / "runtime"):
                 database = store.Store()
                 first = database.add_profile("Первый", "tf_live_first", {"email": "a@example.com"})
+                again = database.add_profile("Повтор", "tf_live_first", {"email": "a@example.com"})
+                self.assertEqual(first["id"], again["id"])
+                self.assertEqual(first["public_key"], again["public_key"])
                 second = database.add_profile("Второй", "tf_live_second", {"email": "b@example.com"})
                 self.assertNotEqual(first["id"], second["id"])
                 self.assertNotEqual(first["public_key"], second["public_key"])

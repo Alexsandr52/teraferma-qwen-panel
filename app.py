@@ -12,7 +12,7 @@ import threading
 import time
 import urllib.parse
 
-from rental import APIError, OPENCODE_PORT, RentalController, account_for_token
+from rental import APIError, MODEL_PORT, OPENCODE_PORT, RentalController, account_for_token
 from store import DATA, ROOT, Store, _read, _write
 
 HOST = "127.0.0.1"
@@ -75,11 +75,14 @@ class Handler(BaseHTTPRequestHandler):
         if path.path == "/api/health":
             return self._json({"ok": True})
         if path.path == "/api/state":
+            opencode = controller.opencode
             return self._json({
                 "profiles": store.list_profiles(),
                 "rental": store.get_state(),
                 "storage": storage_states(),
-                "opencode_url": f"http://127.0.0.1:{OPENCODE_PORT}"
+                "opencode_url": (f"http://127.0.0.1:{OPENCODE_PORT}"
+                                 if opencode and opencode.poll() is None else None),
+                "model_url": f"http://127.0.0.1:{MODEL_PORT}"
             })
         if path.path == "/api/account":
             profile_id = urllib.parse.parse_qs(path.query).get("profile_id", [""])[0]
