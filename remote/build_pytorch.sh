@@ -39,6 +39,9 @@ cmake --build "$ROOT/llama.cpp/build" --target llama-server -j 16
 
 cp -P "$ROOT/llama.cpp/build/bin/llama-server" "$ROOT/runtime/"
 find "$ROOT/llama.cpp/build/bin" -maxdepth 1 -name '*.so*' -exec cp -P {} "$ROOT/runtime/" \;
+# Keep the runtime self-contained: a fresh machine has no build-essential.
+gomp=$(ldd "$ROOT/runtime/llama-server" | awk '/libgomp\.so/ {print $3; exit}')
+[ -n "$gomp" ] && [ -f "$gomp" ] && cp -L "$gomp" "$ROOT/runtime/libgomp.so.1"
 chmod 700 "$ROOT/runtime/llama-server"
 ldconfig -n "$ROOT/runtime" 2>/dev/null || true
 LD_LIBRARY_PATH="$ROOT/runtime:${LD_LIBRARY_PATH:-}" "$ROOT/runtime/llama-server" --version

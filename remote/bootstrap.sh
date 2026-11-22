@@ -66,9 +66,22 @@ if [ ! -f "$ROOT/runtime/llama-server" ]; then
   bash "$ROOT/build_pytorch.sh" || fail 'Не удалось подготовить CUDA-сборку llama.cpp'
 fi
 
+export LD_LIBRARY_PATH="$ROOT/runtime:/opt/conda/lib/python3.11/site-packages/nvidia/cublas/lib:/opt/conda/lib/python3.11/site-packages/nvidia/cuda_runtime/lib:${LD_LIBRARY_PATH:-}"
+missing_libs() { { ldd "$ROOT/runtime/llama-server" 2>/dev/null || true; } | awk '/not found/ {print $1}'; }
+# A runtime restored from another machine may miss libgomp, which came with
+# build-essential on the machine that built it.
+if missing_libs | grep -q '^libgomp'; then
+  echo 'Устанавливаю libgomp для сохранённого llama-server'
+  DEBIAN_FRONTEND=noninteractive apt-get update -qq
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq libgomp1
+  gomp=$(ldconfig -p | awk '/libgomp\.so\.1 / {print $NF; exit}')
+  [ -n "$gomp" ] && cp -L "$gomp" "$ROOT/runtime/libgomp.so.1" && chmod 644 "$ROOT/runtime/libgomp.so.1"
+fi
+missing=$(missing_libs | tr '\n' ' ')
+[ -z "$missing" ] || fail "llama-server не находит библиотеки: $missing"
+
 echo LOADING > "$STATUS"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
-export LD_LIBRARY_PATH="$ROOT/runtime:/opt/conda/lib/python3.11/site-packages/nvidia/cublas/lib:/opt/conda/lib/python3.11/site-packages/nvidia/cuda_runtime/lib:${LD_LIBRARY_PATH:-}"
 nohup "$ROOT/runtime/llama-server" \
   --model "$MODEL" --alias qwen38-27b \
   --host 127.0.0.1 --port 17860 \
