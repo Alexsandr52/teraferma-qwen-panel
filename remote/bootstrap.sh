@@ -11,7 +11,7 @@ MODEL_URL=https://huggingface.co/huihui-ai/Huihui-Qwen3.8-27B-abliterated-GGUF/r
 
 mkdir -p "$ROOT"
 trap 'echo FAILED > "$STATUS"' ERR
-fail() { echo FAILED > "$STATUS"; echo "$1" >&2; exit 1; }
+fail() { echo "$1" >&2; echo FAILED > "$STATUS"; exit 1; }
 
 valid_model() {
   [ -f "$MODEL" ] && [ "$(stat -c %s "$MODEL")" -eq "$MODEL_SIZE" ] \

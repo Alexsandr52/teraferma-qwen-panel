@@ -372,8 +372,9 @@ class RentalController:
                         "printf 'BUILD:'; grep -oE '\\[[[:space:]]*[0-9]+%\\]' "
                         "/workspace/qwen-panel/bootstrap.log 2>/dev/null "
                         "| tail -n 1 | tr -cd '0-9'; printf '\\n'; "
-                        "printf 'LOG:'; tail -n 1 /workspace/qwen-panel/bootstrap.log "
-                        "2>/dev/null || true",
+                        "printf 'LOG:'; if grep -qx FAILED /workspace/qwen-panel/status 2>/dev/null; then "
+                        "tail -n 50 /workspace/qwen-panel/bootstrap.log 2>/dev/null | tail -c 8192; "
+                        "else tail -n 1 /workspace/qwen-panel/bootstrap.log 2>/dev/null; fi || true",
                         timeout=25
                     )
                     stage_match = re.search(r"(?m)^STAGE:(\w+)", report)
@@ -383,7 +384,8 @@ class RentalController:
                     byte_count = int(bytes_match.group(1)) if bytes_match else 0
                     build_percent = int(build_match.group(1)) if build_match else 0
                     if stage == "FAILED":
-                        raise RuntimeError("Подготовка модели завершилась ошибкой: " + report[-500:])
+                        detail = report.partition("LOG:")[2].strip() or "Сервер не вернул журнал подготовки"
+                        raise RuntimeError("Подготовка модели завершилась ошибкой:\n" + detail)
                     names = {
                         "RESTORING": "Восстанавливаю модель из хранилища Teraferma",
                         "DOWNLOADING": "Первая загрузка модели на сервер",

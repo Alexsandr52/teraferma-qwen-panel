@@ -55,6 +55,20 @@ class SafetyTests(unittest.TestCase):
         with patch.object(controller, "_open_opencode", side_effect=OSError("OpenCode недоступен")):
             self.assertIn("Открой чат модели", controller._ready_message())
 
+    def test_remote_failure_preserves_engine_error(self):
+        database = Mock(get_state=Mock(return_value={"status": "idle"}))
+        controller = rental.RentalController(database)
+        controller.tunnel = Mock()
+        controller.tunnel.poll.return_value = None
+        report = ("STAGE:FAILED\nBYTES:24945124640\nBUILD:\n"
+                  "LOG:engine diagnostic at the start\n" + "x" * 700 +
+                  "\nllama-server завершился при загрузке модели")
+        with patch.object(controller, "_health", return_value=False), \
+             patch.object(controller, "_ssh_run", return_value=report), \
+             patch.object(rental.time, "monotonic", return_value=100):
+            with self.assertRaisesRegex(RuntimeError, "engine diagnostic at the start"):
+                controller._wait_model(Mock(), 1)
+
     def test_ssh_auth_failure_survives_timeout(self):
         database = Mock(get_state=Mock(return_value={"status": "idle"}))
         controller = rental.RentalController(database)
